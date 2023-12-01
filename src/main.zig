@@ -7,13 +7,16 @@ const io = std.io;
 const heap = std.heap;
 const proc = std.process;
 
+const MAXLINE = 1024;
+const MAXARGS = 100;
+
 fn takeInput(reader: anytype, str: *[]u8) !void {
-    var input: [1024]u8 = undefined;
+    var input: [MAXLINE]u8 = undefined;
     str.* = try reader.readUntilDelimiter(&input, '\n');
 }
 
 fn printDir(writer: anytype) !void {
-    var buf: [1024]u8 = undefined;
+    var buf: [MAXLINE]u8 = undefined;
     const cwd = try proc.getCwd(&buf);
     try writer.print("\nDir: {s}", .{cwd});
 }
@@ -21,9 +24,9 @@ fn printDir(writer: anytype) !void {
 fn processString(allocator: mem.Allocator, str: []const u8) ![][]const u8 {
     var i: usize = 0;
     var si = mem.splitAny(u8, str, " ");
-    var p = try allocator.alloc([]const u8, 100);
+    var p = try allocator.alloc([]const u8, MAXARGS);
     defer allocator.free(p);
-    while (i < 100) : (i += 1) {
+    while (i < MAXARGS) : (i += 1) {
         if (si.next()) |next| {
             p[i] = next;
         } else {
@@ -37,9 +40,23 @@ fn processString(allocator: mem.Allocator, str: []const u8) ![][]const u8 {
 }
 
 fn execArgs(allocator: mem.Allocator, args: [][]const u8) !void {
-    const result = proc.execv(allocator, args);
+    var child = proc.Child.init(args, allocator);
+    var out = std.ArrayList(u8).init(allocator);
+    var err = std.ArrayList(u8).init(allocator);
+    defer out.deinit();
+    defer err.deinit();
 
-    std.debug.print("\n{any}", .{result});
+    // Make sure output is being piped
+    child.stdout_behavior = .Pipe;
+    child.stderr_behavior = .Pipe;
+
+    try child.spawn();
+
+    try proc.Child.collectOutput(child, &out, &err, MAXLINE);
+
+    _ = try child.wait();
+
+    std.debug.print("{s}", .{if (err.items.len > 0) err.items else out.items});
 }
 
 pub fn main() !void {
