@@ -5,6 +5,7 @@ const os = std.os;
 const fs = std.fs;
 const io = std.io;
 const heap = std.heap;
+const proc = std.process;
 
 fn takeInput(reader: anytype, str: *[]u8) !void {
     var input: [1024]u8 = undefined;
@@ -13,34 +14,41 @@ fn takeInput(reader: anytype, str: *[]u8) !void {
 
 fn printDir(writer: anytype) !void {
     var buf: [1024]u8 = undefined;
-    const cwd = try os.getcwd(&buf);
+    const cwd = try proc.getCwd(&buf);
     try writer.print("\nDir: {s}", .{cwd});
 }
 
-fn processString(str: []const u8, parsed: [][]const u8) void {
-    var i: u8 = 0;
+fn processString(allocator: mem.Allocator, str: []const u8) ![][]const u8 {
+    var i: usize = 0;
     var si = mem.splitAny(u8, str, " ");
-
+    var p = try allocator.alloc([]const u8, 100);
+    defer allocator.free(p);
     while (i < 100) : (i += 1) {
         if (si.next()) |next| {
-            parsed[i] = next;
+            p[i] = next;
         } else {
             break;
         }
     }
+    const ret = try allocator.alloc([]const u8, i);
+    mem.copy([]const u8, ret, p[0..i]);
+
+    return ret;
 }
 
 pub fn main() !void {
     const stdin = io.getStdIn().reader();
     const stdout = io.getStdOut().writer();
-    var parsed: [100][]const u8 = undefined;
+    const child_allocator = heap.c_allocator;
+    var allocator = heap.ArenaAllocator.init(child_allocator);
+    defer allocator.deinit();
 
     try stdout.print("Enter something: ", .{});
     var in: []u8 = undefined;
     try takeInput(stdin, &in);
 
     try stdout.print("Entered: {s}\n", .{in});
-    processString("This is a test", &parsed);
+    const parsed: [][]const u8 = try processString(allocator.allocator(), "ls /Users");
     try printDir(stdout);
-    if (parsed[0].len > 0) try stdout.print("\nFirst parsed: {s}", .{parsed[0]});
+    if (parsed[0].len > 0) try stdout.print("\nFirst parsed: {s}\n", .{parsed[0]});
 }
