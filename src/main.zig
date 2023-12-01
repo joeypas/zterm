@@ -54,8 +54,14 @@ pub fn main() !void {
     try takeInput(stdin, &in);
 
     try stdout.print("Entered: {s}\n", .{in});
-    const parsed: [][]const u8 = try processString(allocator.allocator(), "/bin/ls /Users/");
+
+    const cwd = try proc.getCwdAlloc(allocator.allocator());
+    defer allocator.allocator().free(cwd);
+    const cmd = try mem.concat(allocator.allocator(), u8, &[_][]const u8{ "/bin/ls ", cwd });
+    const parsed: [][]const u8 = try processString(allocator.allocator(), cmd);
+    defer allocator.allocator().free(parsed);
     try printDir(stdout);
+
     if (parsed[0].len > 0) try stdout.print("\nFirst parsed: {s}\n", .{parsed[0]});
     const alloc = allocator.allocator();
     try execArgs(alloc, parsed);
