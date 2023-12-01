@@ -36,6 +36,12 @@ fn processString(allocator: mem.Allocator, str: []const u8) ![][]const u8 {
     return ret;
 }
 
+fn execArgs(allocator: mem.Allocator, args: [][]const u8) !void {
+    const result = proc.execv(allocator, args);
+
+    std.debug.print("\n{any}", .{result});
+}
+
 pub fn main() !void {
     const stdin = io.getStdIn().reader();
     const stdout = io.getStdOut().writer();
@@ -48,7 +54,9 @@ pub fn main() !void {
     try takeInput(stdin, &in);
 
     try stdout.print("Entered: {s}\n", .{in});
-    const parsed: [][]const u8 = try processString(allocator.allocator(), "ls /Users");
+    const parsed: [][]const u8 = try processString(allocator.allocator(), "/bin/ls /Users/");
     try printDir(stdout);
     if (parsed[0].len > 0) try stdout.print("\nFirst parsed: {s}\n", .{parsed[0]});
+    const alloc = allocator.allocator();
+    try execArgs(alloc, parsed);
 }
